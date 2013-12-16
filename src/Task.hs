@@ -2,6 +2,7 @@ module Task
 (
 Task
 , tryParseTask
+, taskToString
 ) where
 
 import Data.Time.Format
@@ -129,3 +130,24 @@ tryParseTask s =
         Right "Task date is missing"
       else
         Left $ createTask (fromJust maybeName) (fromJust maybeDate) maybeRepeat
+
+
+
+-- | Return a String representation of UTCTime
+--
+-- Examples:
+--
+-- >>> let dt = fromJust $ tryParseDateTime (DateTimeString "2011-01-01")
+-- >>> formatDateTime dt
+-- "2011.01.01 00:00"
+formatDateTime :: UTCTime -> String
+formatDateTime dateTime = formatTime defaultTimeLocale "%Y.%m.%d %H:%M" dateTime
+
+-- | Return a String representation of a Task
+--
+-- Examples:
+--
+-- >>> let (Left t) = tryParseTask "\"Pick up the milk\" ^(2013-01-01) *daily"
+-- >>> taskToString t
+-- "\"Pick up the milk\"    2013.01.01 00:00"
+taskToString (Task name dueDate repeat completed) = "\"" ++ name ++ "\"" ++ "    " ++ formatDateTime dueDate

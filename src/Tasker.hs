@@ -2,6 +2,7 @@ module Tasker where
 import Control.Monad.State
 import System.IO
 import Task
+import Data.Maybe
 
 
 type TaskList = [Task]
@@ -20,19 +21,19 @@ eval :: String -> String
 eval _ = ""
 
 
-showPrompt  :: IO ()
-showPrompt = do
-  putStr("> ")
+showPrompt :: String -> IO ()
+showPrompt s = do
+  putStr("(" ++ s ++ ")" ++ " > ")
 
 reportError :: String -> IO ()
 reportError error = do
-  putStr("Error: " ++ error)
+  putStrLn("Error: " ++ error)
 
 getTaskDescriptionFromUser :: IO String
 getTaskDescriptionFromUser = do
   putStrLn("Enter the task description according to template:")
   putStrLn("\"Pick up the milk\" ^(2013-01-01) *daily")
-  showPrompt
+  showPrompt("create task")
   getLine
 
 tryCreateTaskInteraction :: IO (Maybe Task)
@@ -44,18 +45,20 @@ tryCreateTaskInteraction = do
       return (Nothing)
     Left task -> return (Just task)
 
-repl = let taskList = [] in
-  do
-  showPrompt
+taskListString :: [Task] -> String
+taskListString tasks = unlines $ map taskToString tasks
+
+repl :: [Task] -> IO ()
+repl taskList = do
+  showPrompt "main"
   input <- getLine
   case input of
     "c" -> do
       maybeTask <- (tryCreateTaskInteraction :: IO (Maybe Task))
-      case maybeTask of
-        Nothing -> return ()
-        Just task -> do
-          showPrompt
-          return ()
+      repl (maybeToList maybeTask ++  taskList)
+    "ls" -> do
+      putStrLn $ taskListString taskList
+      repl taskList
     "q" -> do
       return ()
     "?" -> do
@@ -63,8 +66,8 @@ repl = let taskList = [] in
       return ()
     cmd -> do
       putStrLn(eval(cmd))
-      repl
+      repl taskList
 
 
 main :: IO ()
-main = repl
+main = repl []
