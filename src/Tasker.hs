@@ -78,6 +78,10 @@ getTaskIdFromUser = do
   int <- getLine
   return (read int :: Int)
 
+removeTaskFromList :: [Task] -> Int -> [Task]
+removeTaskFromList (task:tasks) 0 = tasks
+removeTaskFromList (task:tasks) index = task : removeTaskFromList tasks (index - 1)
+
 repl :: [Task] -> DateTimeString -> IO ()
 repl taskList currentDateString = let
   currentDate = fromJust $ tryParseDateTime currentDateString
@@ -101,6 +105,9 @@ repl taskList currentDateString = let
       repl taskList currentDateString
     "remove completed" -> do
       repl (filter (\t -> not (isTaskCompleted t)) taskList) currentDateString
+    "remove" -> do
+      taskId <- getTaskIdFromUser
+      repl (removeTaskFromList taskList taskId) currentDateString
     "show completed" -> do
       putStrLn $ taskListString (filter isTaskCompleted taskList)
       repl taskList currentDateString
