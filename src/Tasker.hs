@@ -3,7 +3,9 @@ import Control.Monad.State
 import System.IO
 import Task
 import Data.Maybe
-
+import Data.List
+import Data.Traversable
+import Data.Either
 
 type TaskList = [Task]
 
@@ -20,7 +22,6 @@ help = "don't panic"
 eval :: String -> String
 eval _ = ""
 
-
 showPrompt :: String -> IO ()
 showPrompt s = do
   putStr("(" ++ s ++ ")" ++ " > ")
@@ -36,11 +37,12 @@ getTaskDescriptionFromUser = do
   showPrompt("create task")
   getLine
 
-getCurrentDateFromUser :: IO (String)
+getCurrentDateFromUser :: IO (DateTimeString)
 getCurrentDateFromUser = do
   putStrLn("Enter the current date")
   showPrompt("set date")
-  getLine
+  line <- getLine
+  return (DateTimeString line)
 
 tryCreateTaskInteraction :: IO (Maybe Task)
 tryCreateTaskInteraction = do
@@ -52,11 +54,19 @@ tryCreateTaskInteraction = do
     Left task -> return (Just task)
 
 taskListString :: [Task] -> String
-taskListString tasks = unlines $ map taskToString tasks
+taskListString tasks =
+  unlines $ map (\task -> taskStringWithId task tasks) tasks
 
-repl :: [Task] -> String -> IO ()
+-- | Prepend the task positions so that we can select by those
+taskStringWithId :: Task -> [Task] -> String
+taskStringWithId task tasks = let
+  id = fromJust $ elemIndex task tasks in
+  show id ++ ". " ++ taskToString task
+
+
+repl :: [Task] -> DateTimeString -> IO ()
 repl taskList currentDateString = let
-  currentDate = tryFindAndParseDateTime currentDateString
+  currentDate = fromJust $ tryParseDateTime currentDateString
   in do
   showPrompt "main"
   input <- getLine
@@ -67,9 +77,16 @@ repl taskList currentDateString = let
     "show" -> do
       putStrLn $ taskListString taskList
       repl taskList currentDateString
+    "show today" -> let
+      isTaskDue = isTaskDueToday currentDate
+      isTaskOverdue = isTaskOverDue currentDate
+      isTaskToBeShown = (\task -> isTaskDue task || isTaskOverdue task)
+      in do
+      putStrLn $ taskListString (filter isTaskToBeShown taskList)
+      repl taskList currentDateString
     "set date" -> do
-      dateString <- (getCurrentDateFromUser :: IO (String))
-      putStrLn("Date set to " ++ dateString)
+      dateString <- (getCurrentDateFromUser :: IO (DateTimeString))
+      putStrLn("Date set to " ++ show dateString)
       repl taskList dateString
     "q" -> do
       return ()
@@ -82,4 +99,9 @@ repl taskList currentDateString = let
 
 
 main :: IO ()
-main = repl [] "2013-01-01"
+main = let
+  taskStringList = [
+    "\"Pick up the milk\" ^(2013-01-01) *once"
+             ]
+  taskList = lefts $ fmap tryParseTask taskStringList in
+  repl taskList (DateTimeString "2013-01-01")

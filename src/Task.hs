@@ -3,7 +3,10 @@ module Task
 Task
 , tryParseTask
 , taskToString
-, tryFindAndParseDateTime
+, tryParseDateTime
+, isTaskDueToday
+, isTaskOverDue
+, DateTimeString(DateTimeString)
 ) where
 
 import Data.Time.Format
@@ -13,14 +16,14 @@ import Text.Regex.Posix
 import Data.Maybe
 import Control.Monad
 
-data Repeat = Once | Daily | Weekly | Monthly | Yearly deriving (Show)
+data Repeat = Once | Daily | Weekly | Monthly | Yearly deriving (Show, Eq)
 
 data Task = Task {
   name :: String,
   dueDate :: UTCTime,
   repeat :: Repeat,
   completed :: Bool
-} deriving (Show)
+} deriving (Show, Eq)
 
 -- haskell type safety <3
 newtype TaskName = TaskName String deriving Show
@@ -139,10 +142,13 @@ tryParseTask s =
 -- Examples:
 --
 -- >>> let dt = fromJust $ tryParseDateTime (DateTimeString "2011-01-01")
--- >>> formatDateTime dt
+-- >>> formatDateTime "%Y.%m.%d %H:%M" dt
 -- "2011.01.01 00:00"
-formatDateTime :: UTCTime -> String
-formatDateTime dateTime = formatTime defaultTimeLocale "%Y.%m.%d %H:%M" dateTime
+formatDateTime :: String -> UTCTime -> String
+formatDateTime fmt dateTime = formatTime defaultTimeLocale fmt dateTime
+
+standardDateFormat :: String
+standardDateFormat = "%Y-%m-%d"
 
 -- | Return a String representation of a Task
 --
@@ -151,4 +157,59 @@ formatDateTime dateTime = formatTime defaultTimeLocale "%Y.%m.%d %H:%M" dateTime
 -- >>> let (Left t) = tryParseTask "\"Pick up the milk\" ^(2013-01-01) *daily"
 -- >>> taskToString t
 -- "\"Pick up the milk\"    2013.01.01 00:00"
-taskToString (Task name dueDate repeat completed) = "\"" ++ name ++ "\"" ++ "    " ++ formatDateTime dueDate
+taskToString (Task name dueDate repeat completed) = let
+  space = "    "
+  quote = "\""
+  in
+  quote ++ name ++ quote ++ space ++ formatDateTime "%Y.%m.%d %H:%M" dueDate
+
+-- | True if Task due date is after given date
+--
+-- Examples:
+--
+-- >>> let (Left t) = tryParseTask "\"Pick up the milk\" ^(2013-01-01) *daily"
+-- >>> let dt1 = fromJust $ tryParseDateTime (DateTimeString "2013-01-02")
+-- >>> let dt2 = fromJust $ tryParseDateTime (DateTimeString "2013-01-01")
+-- >>> isTaskOverDue dt1 t
+-- True
+-- >>> isTaskOverDue dt2 t
+-- False
+isTaskOverDue :: UTCTime -> Task -> Bool
+isTaskOverDue dateTime (Task name due repeat completed) =
+  diffUTCTime dateTime due > 0
+
+
+-- | True if both dateTime have the same date part
+--
+-- Examples:
+--
+-- >>> let dt1 = fromJust $ tryParseDateTime (DateTimeString "2013-01-01")
+-- >>> let dt2 = fromJust $ tryParseDateTime (DateTimeString "2013-01-02")
+-- >>> isDatePartEqual dt1 dt1
+-- True
+-- >>> isDatePartEqual dt1 dt2
+-- False
+isDatePartEqual :: UTCTime -> UTCTime -> Bool
+isDatePartEqual dt1 dt2 = let
+  d1 = formatDateTime standardDateFormat dt1
+  d2 = formatDateTime standardDateFormat dt2 in
+  dt1 == dt2
+
+
+-- | True if task is due Today
+--
+-- Examples:
+--
+-- >>> let (Left t) = tryParseTask "\"Pick up the milk\" ^(2013-01-01) *daily"
+-- >>> let dt1 = fromJust $ tryParseDateTime (DateTimeString "2013-01-01")
+-- >>> let dt2 = fromJust $ tryParseDateTime (DateTimeString "2012-01-02")
+-- >>> let dt3 = fromJust $ tryParseDateTime (DateTimeString "2013-01-03")
+-- >>> isTaskDueToday dt1 t
+-- True
+-- >>> isTaskDueToday dt2 t
+-- False
+-- >>> isTaskDueToday dt3 t
+-- True
+isTaskDueToday :: UTCTime -> Task -> Bool
+isTaskDueToday date (Task name dueDate repeat completed) =
+  isDatePartEqual dueDate date || dueDate < date
