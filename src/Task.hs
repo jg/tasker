@@ -3,6 +3,7 @@ module Task
 Task
 , tryParseTask
 , taskToString
+, tryFindAndParseDateTime
 ) where
 
 import Data.Time.Format

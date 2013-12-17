@@ -36,6 +36,12 @@ getTaskDescriptionFromUser = do
   showPrompt("create task")
   getLine
 
+getCurrentDateFromUser :: IO (String)
+getCurrentDateFromUser = do
+  putStrLn("Enter the current date")
+  showPrompt("set date")
+  getLine
+
 tryCreateTaskInteraction :: IO (Maybe Task)
 tryCreateTaskInteraction = do
   taskString <- getTaskDescriptionFromUser
@@ -48,17 +54,23 @@ tryCreateTaskInteraction = do
 taskListString :: [Task] -> String
 taskListString tasks = unlines $ map taskToString tasks
 
-repl :: [Task] -> IO ()
-repl taskList = do
+repl :: [Task] -> String -> IO ()
+repl taskList currentDateString = let
+  currentDate = tryFindAndParseDateTime currentDateString
+  in do
   showPrompt "main"
   input <- getLine
   case input of
     "c" -> do
       maybeTask <- (tryCreateTaskInteraction :: IO (Maybe Task))
-      repl (maybeToList maybeTask ++  taskList)
-    "ls" -> do
+      repl (maybeToList maybeTask ++  taskList) currentDateString
+    "show" -> do
       putStrLn $ taskListString taskList
-      repl taskList
+      repl taskList currentDateString
+    "set date" -> do
+      dateString <- (getCurrentDateFromUser :: IO (String))
+      putStrLn("Date set to " ++ dateString)
+      repl taskList dateString
     "q" -> do
       return ()
     "?" -> do
@@ -66,8 +78,8 @@ repl taskList = do
       return ()
     cmd -> do
       putStrLn(eval(cmd))
-      repl taskList
+      repl taskList currentDateString
 
 
 main :: IO ()
-main = repl []
+main = repl [] "2013-01-01"
