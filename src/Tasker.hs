@@ -99,6 +99,8 @@ repl taskList currentDateString = let
       in do
       putStrLn $ taskListString (filter isTaskToBeShown taskList)
       repl taskList currentDateString
+    "remove completed" -> do
+      repl (filter (\t -> not (isTaskCompleted t)) taskList) currentDateString
     "show completed" -> do
       putStrLn $ taskListString (filter isTaskCompleted taskList)
       repl taskList currentDateString
