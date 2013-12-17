@@ -7,6 +7,7 @@ Task
 , isTaskDueToday
 , isTaskOverDue
 , DateTimeString(DateTimeString)
+, markTaskAsCompleted
 ) where
 
 import Data.Time.Format
@@ -33,6 +34,11 @@ newtype DateTimeString = DateTimeString String deriving Show
 createTask :: TaskName -> UTCTime -> Maybe Repeat -> Task
 createTask (TaskName name) date (Just repeat) = Task name date repeat False
 createTask (TaskName name) date Nothing       = Task name date Once False
+
+markTaskAsCompleted :: Task -> Task
+markTaskAsCompleted (Task name dueDate repeat completed) =
+  (Task name dueDate repeat True)
+
 
 -- | Parse UTCTime
 --
@@ -155,13 +161,20 @@ standardDateFormat = "%Y-%m-%d"
 -- Examples:
 --
 -- >>> let (Left t) = tryParseTask "\"Pick up the milk\" ^(2013-01-01) *daily"
+-- >>> let ct = markTaskAsCompleted t
 -- >>> taskToString t
 -- "\"Pick up the milk\"    2013.01.01 00:00"
+-- >>> taskToString ct
+-- "\"Pick up the milk\"    2013.01.01 00:00    completed"
 taskToString (Task name dueDate repeat completed) = let
   space = "    "
   quote = "\""
+  base = quote ++ name ++ quote ++ space ++ formatDateTime "%Y.%m.%d %H:%M" dueDate
   in
-  quote ++ name ++ quote ++ space ++ formatDateTime "%Y.%m.%d %H:%M" dueDate
+   if completed then
+     base ++ space ++ "completed"
+   else
+     base
 
 -- | True if Task due date is after given date
 --

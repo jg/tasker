@@ -63,6 +63,20 @@ taskStringWithId task tasks = let
   id = fromJust $ elemIndex task tasks in
   show id ++ ". " ++ taskToString task
 
+markTaskAsCompletedInTaskList :: [Task] -> Int -> [Task]
+markTaskAsCompletedInTaskList (task:tasks) index =
+  if index == 0 then
+     (markTaskAsCompleted task) : tasks
+  else
+    task : (markTaskAsCompletedInTaskList tasks (index - 1))
+
+
+getTaskIdFromUser :: IO Int
+getTaskIdFromUser = do
+  putStrLn("Enter the task id: ")
+  showPrompt("task id")
+  int <- getLine
+  return (read int :: Int)
 
 repl :: [Task] -> DateTimeString -> IO ()
 repl taskList currentDateString = let
@@ -84,6 +98,9 @@ repl taskList currentDateString = let
       in do
       putStrLn $ taskListString (filter isTaskToBeShown taskList)
       repl taskList currentDateString
+    "mark completed" -> do
+      taskId <- getTaskIdFromUser
+      repl (markTaskAsCompletedInTaskList taskList taskId) currentDateString
     "set date" -> do
       dateString <- (getCurrentDateFromUser :: IO (DateTimeString))
       putStrLn("Date set to " ++ show dateString)
