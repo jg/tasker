@@ -8,6 +8,7 @@ Task
 , isTaskOverDue
 , DateTimeString(DateTimeString)
 , markTaskAsCompleted
+, isTaskCompleted
 ) where
 
 import Data.Time.Format
@@ -226,3 +227,17 @@ isDatePartEqual dt1 dt2 = let
 isTaskDueToday :: UTCTime -> Task -> Bool
 isTaskDueToday date (Task name dueDate repeat completed) =
   isDatePartEqual dueDate date || dueDate < date
+
+
+-- | Return a String representation of a Task
+--
+-- Examples:
+--
+-- >>> let (Left t) = tryParseTask "\"Pick up the milk\" ^(2013-01-01) *daily"
+-- >>> let ct = markTaskAsCompleted t
+-- >>> isTaskCompleted t
+-- False
+-- >>> isTaskCompleted ct
+-- True
+isTaskCompleted :: Task -> Bool
+isTaskCompleted (Task name dueDate repeat completed) = completed

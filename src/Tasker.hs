@@ -94,9 +94,13 @@ repl taskList currentDateString = let
     "show today" -> let
       isTaskDue = isTaskDueToday currentDate
       isTaskOverdue = isTaskOverDue currentDate
-      isTaskToBeShown = (\task -> isTaskDue task || isTaskOverdue task)
+      isTaskToBeShown =
+        (\t -> (isTaskDue t || isTaskOverdue t) && not (isTaskCompleted t))
       in do
       putStrLn $ taskListString (filter isTaskToBeShown taskList)
+      repl taskList currentDateString
+    "show completed" -> do
+      putStrLn $ taskListString (filter isTaskCompleted taskList)
       repl taskList currentDateString
     "mark completed" -> do
       taskId <- getTaskIdFromUser
