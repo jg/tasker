@@ -1,5 +1,4 @@
 module Tasker where
-import Control.Monad.State
 import System.IO
 import Task
 import Data.Maybe
@@ -7,16 +6,7 @@ import Data.List
 import Data.Traversable
 import Data.Either
 import System.IO.Error
-
-
-type TaskList = [Task]
-
-addTask :: Task -> State TaskList ()
-addTask t = State $ \xs -> ((), t:xs)
-
-filterTaskList :: (Task -> Bool) -> State TaskList ()
-filterTaskList f = State $ \xs -> ((), filter f xs)
-
+import Control.Exception
 
 help :: String
 help = "Enter one of the following commands:\
