@@ -2,23 +2,32 @@ module Task
 (
 Task
 , tryParseTask
+, tryParseTaskIO
 , taskToString
+, taskToStringIO
 , tryParseDateTime
 , isTaskDueToday
 , isTaskOverDue
+, parseDateFormat
 , DateTimeString(DateTimeString)
 , markTaskAsCompleted
 , isTaskCompleted
 ) where
 
+import Data.Char
 import Data.Time.Format
 import System.Locale
 import Data.Time.Clock
 import Text.Regex.Posix
 import Data.Maybe
 import Control.Monad
+import System.IO
 
 data Repeat = Once | Daily | Weekly | Monthly | Yearly deriving (Show, Eq)
+
+--4 supported data formats- Year-Month-Day or Month-Day-Year, separated either by slashes or dashes
+data DateFormat = SlashedMDY | DashedYMD | SlashedYMD | DashedMDY deriving (Show, Eq, Ord)
+
 
 data Task = Task {
   name :: String,
@@ -26,6 +35,7 @@ data Task = Task {
   repeat :: Repeat,
   completed :: Bool
 } deriving (Show, Eq)
+
 
 -- haskell type safety <3
 newtype TaskName = TaskName String deriving Show
@@ -36,11 +46,29 @@ createTask :: TaskName -> UTCTime -> Maybe Repeat -> Task
 createTask (TaskName name) date (Just repeat) = Task name date repeat False
 createTask (TaskName name) date Nothing       = Task name date Once False
 
+
+--For i/o purposes-same as createTask with completed added
+createTaskIO :: TaskName -> UTCTime -> Maybe Repeat -> Bool-> Task
+createTaskIO (TaskName name) date (Just repeat) complete = Task name date repeat complete
+createTaskIO (TaskName name) date Nothing  complete     = Task name date Once complete
+
+
 markTaskAsCompleted :: Task -> Task
 markTaskAsCompleted (Task name dueDate repeat completed) =
   (Task name dueDate repeat True)
 
 
+
+--parse the type of data format
+parseDateFormat :: String -> DateFormat
+parseDateFormat (a:b:c:d:s)
+			|dashes && yformat = DashedYMD
+			|slashes &&yformat = SlashedYMD
+			|dashes = DashedMDY
+			|otherwise = SlashedMDY
+			where slashes= '/' `elem` (a:b:c:d:s)
+			      dashes= '-' `elem` (a:b:c:d:s)
+			      yformat=(isDigit(a) && isDigit(b) && isDigit(c) && isDigit(d))
 -- | Parse UTCTime
 --
 -- Examples:
@@ -48,8 +76,16 @@ markTaskAsCompleted (Task name dueDate repeat completed) =
 -- >>> tryParseDateTime (DateTimeString "2011-01-01")
 -- Just 2011-01-01 00:00:00 UTC
 dateTimeFormat1 = "%Y-%m-%d"
+dateTimeFormat2 = "%m/%d/%Y"
+dateTimeFormat3 = "%m-%d-%Y"
+dateTimeFormat4 = "%Y/%m/%d"
 tryParseDateTime :: DateTimeString -> Maybe UTCTime
-tryParseDateTime (DateTimeString s) = parseTime defaultTimeLocale dateTimeFormat1 s
+tryParseDateTime (DateTimeString s)
+		| format == DashedYMD = parseTime defaultTimeLocale dateTimeFormat1 s
+		| format == SlashedMDY = parseTime defaultTimeLocale dateTimeFormat2 s
+		| format == DashedMDY = parseTime defaultTimeLocale dateTimeFormat3 s
+		| format == SlashedYMD = parseTime defaultTimeLocale dateTimeFormat4 s
+		where format = parseDateFormat( s)
 
 tryParseRepeat :: String -> Maybe Repeat
 tryParseRepeat "once" = Just Once
@@ -58,6 +94,22 @@ tryParseRepeat "weekly" = Just Weekly
 tryParseRepeat "monthly" = Just Monthly
 tryParseRepeat "yearly" = Just Yearly
 tryParseRepeat  _ = Nothing
+
+
+
+tryParseCompleted :: String ->Maybe Bool
+tryParseCompleted "uncompleted" =Just False
+tryParseCompleted "completed" =Just True
+
+-- Parse repeat to string written to file
+tryRepeatToIO :: Repeat -> String
+tryRepeatToIO  Once = "*once"
+tryRepeatToIO  Daily = "*daily"
+tryRepeatToIO  Weekly = "*weekly"
+tryRepeatToIO  Monthly = "*monthly"
+tryRepeatToIO  Yearly = "*yearly"
+
+
 
 isArrayEmpty :: [a] -> Bool
 isArrayEmpty a = length a == 0
@@ -107,6 +159,11 @@ repeatPattern = "\\*(.[^\\s]+)(\\s|$)"
 tryFindRepeat :: String -> Maybe String
 tryFindRepeat s = tryMatch s repeatPattern
 
+
+completePattern = "\\%(.[^\\s]+)(\\s|$)"
+tryFindComplete :: String -> Maybe String
+tryFindComplete s = tryMatch s completePattern
+
 -- find DateTime in string and parse it into UTCTime
 tryFindAndParseDateTime :: String -> Maybe UTCTime
 tryFindAndParseDateTime s = join $ fmap tryParseDateTime (tryFindDateTime s)
@@ -115,6 +172,8 @@ tryFindAndParseDateTime s = join $ fmap tryParseDateTime (tryFindDateTime s)
 tryFindAndParseRepeat :: String -> Maybe Repeat
 tryFindAndParseRepeat s = join $ fmap tryParseRepeat (tryFindRepeat s)
 
+tryFindAndParseCompleted :: String -> Maybe Bool
+tryFindAndParseCompleted s = join $ fmap tryParseCompleted (tryFindComplete s)
 -- | Parse a Task from Remember The Milk formatted string
 --
 -- Examples:
@@ -142,7 +201,23 @@ tryParseTask s =
       else
         Left $ createTask (fromJust maybeName) (fromJust maybeDate) maybeRepeat
 
+-- | Parse a Task from Remember The Milk formatted string from input file
 
+tryParseTaskIO ::String -> Either Task String
+tryParseTaskIO s =
+  let maybeName = tryFindTaskName (s)
+      maybeDate = tryFindAndParseDateTime (s)
+      maybeRepeat =  tryFindAndParseRepeat (s)
+      maybeCompleted =  tryFindAndParseCompleted (s) in
+      if isNothing maybeName then
+        Right "Task name is missing"
+      else if isNothing maybeDate then
+        Right "Task date is missing"
+      else if isNothing maybeCompleted then
+        Right "Task repeat is missing"
+      else	
+	Left $ (createTaskIO (fromJust maybeName) (fromJust maybeDate) maybeRepeat (fromJust maybeCompleted))
+	
 
 -- | Return a String representation of UTCTime
 --
@@ -176,6 +251,15 @@ taskToString (Task name dueDate repeat completed) = let
      base ++ space ++ "completed"
    else
      base
+
+-- | Return an IO String representation of a Task
+
+taskToStringIO (Task name dueDate repeat completed) = let
+  space = " "
+  quote = "\""
+  base = quote ++ name ++ quote ++ space ++ "^(" ++ formatDateTime "%Y-%m-%d" dueDate ++ ")" ++ space ++ (tryRepeatToIO repeat) ++space  ++ "%" ++ (completedToChar completed)
+  in
+    base
 
 -- | True if Task due date is after given date
 --
@@ -241,3 +325,13 @@ isTaskDueToday date (Task name dueDate repeat completed) =
 -- True
 isTaskCompleted :: Task -> Bool
 isTaskCompleted (Task name dueDate repeat completed) = completed
+
+
+completedToChar :: Bool -> String
+completedToChar True = "completed"
+completedToChar False = "uncompleted"
+
+
+
+
+
